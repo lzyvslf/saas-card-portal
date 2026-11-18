@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>平台管理 · CardPortal</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/platform.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">CardPortal <span>平台管理</span></div>
+  <div class="topbar-right"><button class="btn ghost small" onclick="logout()">退出</button></div>
+</header>
+<main class="container">
+  <div class="stats-row" style="grid-template-columns:repeat(5,1fr)">
+    <div class="stat-card"><div class="stat-num" id="s-merchants">0</div><div class="stat-label">商户数</div></div>
+    <div class="stat-card"><div class="stat-num" id="s-subs">0</div><div class="stat-label">有效订阅</div></div>
+    <div class="stat-card"><div class="stat-num" id="s-unused">0</div><div class="stat-label">未用卡密</div></div>
+    <div class="stat-card"><div class="stat-num" id="s-used">0</div><div class="stat-label">已用卡密</div></div>
+    <div class="stat-card"><div class="stat-num" id="s-revenue">¥0</div><div class="stat-label">激活收入</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="overview">概览</button>
+    <button class="tab" data-tab="keys">卡密管理</button>
+    <button class="tab" data-tab="merchants">商户管理</button>
+    <button class="tab" data-tab="plans">套餐价格</button>
+    <button class="tab" data-tab="modules">模块管理</button>
+    <button class="tab" data-tab="account">账号安全</button>
+  </div>
+
+  <section id="tab-overview">
+    <div class="grid-2" style="grid-template-columns:1.15fr .85fr">
+      <div class="card">
+        <div class="card-head"><h3>近 7 天卡密激活</h3></div>
+        <div class="chart" id="chart"></div>
+        <div class="chart-legend">按卡密使用时间统计（笔）</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>模块订阅分布</h3></div>
+        <div id="dist"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-keys" style="display:none">
+    <div class="card">
+      <div class="card-head"><h3>批量生成卡密</h3></div>
+      <form id="key-form" class="inline-form admin-form">
+        <select id="k-module" required></select>
+        <select id="k-plan" required></select>
+        <input id="k-count" type="number" min="1" max="500" value="10" style="max-width:110px" title="生成数量">
+        <input id="k-batch" placeholder="批次号（选填）" maxlength="30">
+        <button class="btn" type="submit">生成卡密</button>
+      </form>
+      <textarea class="code-box" id="generated" readonly placeholder="生成后卡密会显示在这里，点击下方按钮复制"></textarea>
+      <div style="margin-top:8px"><button class="btn small ghost" id="btn-copy">复制全部</button></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>卡密列表</h3>
+        <div class="filter-btns">
+          <select id="f-status" class="small-input">
+            <option value="">全部状态</option>
+            <option value="unused">未使用</option>
+            <option value="used">已使用</option>
+            <option value="void">已作废</option>
+          </select>
+          <select id="f-module" class="small-input"><option value="">全部模块</option></select>
+          <input id="f-q" class="small-input" placeholder="搜索卡密" style="width:150px">
+          <button class="btn small" id="btn-export-keys">导出 Excel</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>卡密</th><th>模块</th><th>套餐</th><th>价格</th><th>状态</th><th>使用时间</th><th>批次</th><th>操作</th></tr></thead>
+          <tbody id="key-rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-merchants" style="display:none">
+    <div class="card">
+      <div class="card-head"><h3>商户列表</h3><button class="btn small" id="btn-export-merchants">导出 Excel</button></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>商户</th><th>账号</th><th>状态</th><th>总到期日</th><th>订阅明细</th><th>注册时间</th></tr></thead>
+          <tbody id="merchant-rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-plans" style="display:none">
+    <div class="card">
+      <div class="card-head"><h3>新增套餐</h3></div>
+      <form id="plan-form" class="inline-form admin-form">
+        <select id="p-module" required></select>
+        <input id="p-name" placeholder="套餐名，如 季卡" required maxlength="20">
+        <input id="p-days" type="number" min="1" value="90" style="max-width:100px" title="天数">
+        <input id="p-price" type="number" min="0" step="1" placeholder="价格(元)" required style="max-width:120px">
+        <button class="btn" type="submit">新增套餐</button>
+      </form>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>套餐价格（单位：元）</h3></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>模块</th><th>套餐</th><th>天数</th><th>价格</th><th>上架</th><th>操作</th></tr></thead>
+          <tbody id="plan-rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-modules" style="display:none">
+    <div class="card">
+      <div class="card-head"><h3>新增模块</h3></div>
+      <form id="module-form" class="inline-form admin-form">
+        <input id="m-key" placeholder="模块标识，如 newapp" required maxlength="30">
+        <input id="m-name" placeholder="模块名称" required maxlength="40">
+        <input id="m-url" placeholder="访问地址 https://..." maxlength="120">
+        <input id="m-desc" placeholder="功能说明" maxlength="100">
+        <button class="btn" type="submit">新增模块</button>
+      </form>
+      <p class="hint" style="text-align:left;margin-top:8px">新增后到「套餐价格」给它配套餐，再到「卡密管理」生成卡密即可售卖。</p>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>模块列表</h3></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>模块</th><th>标识</th><th>说明</th><th>地址</th><th>操作</th></tr></thead>
+          <tbody id="module-rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-account" style="display:none">
+    <div class="card" style="max-width:520px">
+      <div class="card-head"><h3>修改密码</h3></div>
+      <form id="pwd-form">
+        <input id="p-old" type="password" placeholder="原密码" style="width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;font-size:14px;outline:none">
+        <input id="p-new" type="password" placeholder="新密码（至少6位）" style="width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;font-size:14px;outline:none">
+        <input id="p-new2" type="password" placeholder="确认新密码" style="width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:12px;font-size:14px;outline:none">
+        <button class="btn" type="submit">保存新密码</button>
+        <p class="err" id="pwd-err"></p>
+      </form>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const toast = (msg) => { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200); };
+  async function api(url, opts = {}) {
+    const r = await fetch(url, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts));
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { if (r.status === 401) { location.href = '/login.html?next=/admin.html'; throw new Error('未登录'); } throw new Error(d.error || '请求失败'); }
+    return d;
+  }
+  let plans = [];
+  let modules = [];
+  const moduleName = (key) => (modules.find((m) => m.key === key) || {}).name || key;
+
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+    ['overview', 'keys', 'merchants', 'plans', 'modules', 'account'].forEach((n) => { $('#tab-' + n).style.display = n === name ? '' : 'none'; });
+    if (name === 'keys') loadKeys();
+    if (name === 'merchants') loadMerchants();
+    if (name === 'plans') loadPlans();
+    if (name === 'modules') loadModules();
+  }
+
+  async function loadStats() {
+    const s = await api('/api/admin/stats');
+    $('#s-merchants').textContent = s.merchants;
+    $('#s-subs').textContent = s.activeSubs;
+    $('#s-unused').textContent = s.unusedKeys;
+    $('#s-used').textContent = s.usedKeys;
+    $('#s-revenue').textContent = '¥' + (s.revenueCents / 100).toFixed(0);
+    const chart = $('#chart');
+    const max = Math.max(1, ...s.trend.map((t) => t.count));
+    chart.innerHTML = s.trend.map((t) => {
+      const h = Math.max(2, Math.round((t.count / max) * 120));
+      return `<div class="chart-col"><div class="chart-val">${t.count || ''}</div><div class="chart-bar" style="height:${h}px"></div><div class="chart-label">${t.date.slice(5)}</div></div>`;
+    }).join('');
+    $('#dist').innerHTML = s.dist.length
+      ? s.dist.map((d) => `<div class="plan-row"><span>${esc(d.name || d.module)}</span><b>${d.c} 个订阅</b></div>`).join('')
+      : '<p class="empty">暂无订阅</p>';
+  }
+
+  async function loadBase() {
+    const d = await api('/api/admin/plans');
+    plans = d.plans;
+    const m = await api('/api/admin/modules');
+    modules = m.modules;
+    const km = $('#k-module'); km.innerHTML = modules.map((x) => `<option value="${x.key}">${esc(x.name)}</option>`).join('');
+    const fm = $('#f-module'); fm.innerHTML = '<option value="">全部模块</option>' + modules.map((x) => `<option value="${x.key}">${esc(x.name)}</option>`).join('');
+    renderPlanSelect();
+    loadModules();
+  }
+
+  function renderPlanSelect() {
+    const key = $('#k-module').value;
+    const ps = plans.filter((p) => p.module === key && p.active);
+    $('#k-plan').innerHTML = ps.map((p) => `<option value="${p.id}">${esc(p.name)}（${p.days}天 / ¥${(p.price_cents / 100).toFixed(0)}）</option>`).join('');
+  }
+
+  async function loadKeys() {
+    const p = new URLSearchParams();
+    if ($('#f-status').value) p.set('status', $('#f-status').value);
+    if ($('#f-module').value) p.set('module', $('#f-module').value);
+    if ($('#f-q').value.trim()) p.set('q', $('#f-q').value.trim());
+    const d = await api('/api/admin/keys?' + p.toString());
+    const rows = $('#key-rows'); rows.innerHTML = '';
+    d.list.forEach((k) => {
+      const st = k.status === 'unused' ? '<span class="badge green">未使用</span>' : (k.status === 'used' ? '<span class="badge gray">已使用</span>' : '<span class="badge red">已作废</span>');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td style="font-family:Consolas,monospace">${esc(k.code)}</td><td>${esc(moduleName(k.module))}</td>
+        <td>${esc(k.plan)}</td><td>¥${k.price_yuan}</td><td>${st}</td>
+        <td class="muted">${esc((k.used_at || '').replace('T', ' ').slice(0, 16) || '-')}</td>
+        <td class="muted">${esc(k.batch_no || '-')}</td>
+        <td>${k.status === 'unused' ? '<button class="btn small danger" data-void="' + k.id + '">作废</button>' : ''}</td>`;
+      rows.appendChild(tr);
+    });
+    rows.querySelectorAll('[data-void]').forEach((b) => b.addEventListener('click', async () => {
+      if (!confirm('作废该卡密？作废后不可恢复。')) return;
+      try { await api('/api/admin/keys/' + b.dataset.void + '/void', { method: 'POST' }); loadKeys(); loadStats(); } catch (e) { toast(e.message); }
+    }));
+  }
+
+  async function loadMerchants() {
+    const d = await api('/api/admin/merchants');
+    const rows = $('#merchant-rows'); rows.innerHTML = '';
+    d.list.forEach((t) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${esc(t.name)}</td><td>${esc(t.username || '-')}</td>
+        <td>${t.status === 'active' ? '<span class="badge green">正常</span>' : '<span class="badge gray">未激活/停用</span>'}</td>
+        <td class="muted">${esc(t.expire_at || '-')}</td>
+        <td class="muted">${esc(t.sub_text || '无订阅')}</td>
+        <td class="muted">${esc(t.created_at.replace('T', ' ').slice(0, 16))}</td>`;
+      rows.appendChild(tr);
+    });
+  }
+
+  function loadPlans() {
+    const rows = $('#plan-rows'); rows.innerHTML = '';
+    plans.forEach((p) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${esc(moduleName(p.module))}</td><td>${esc(p.name)}</td><td>${p.days}</td>
+        <td><input class="small-input" type="number" min="0" step="1" value="${(p.price_cents / 100).toFixed(0)}" data-price="${p.id}"></td>
+        <td><input type="checkbox" ${p.active ? 'checked' : ''} data-active="${p.id}"></td>
+        <td><button class="btn small ghost" data-save-plan="${p.id}">保存</button></td>`;
+      rows.appendChild(tr);
+    });
+    rows.querySelectorAll('[data-save-plan]').forEach((b) => b.addEventListener('click', async () => {
+      const id = b.dataset.savePlan;
+      const price = Math.round(parseFloat(rows.querySelector('[data-price="' + id + '"]').value) * 100);
+      const active = rows.querySelector('[data-active="' + id + '"]').checked;
+      try {
+        await api('/api/admin/plans/' + id, { method: 'PUT', body: JSON.stringify({ price_cents: price, active }) });
+        toast('已保存');
+        const d = await api('/api/admin/plans'); plans = d.plans;
+      } catch (e) { toast(e.message); }
+    }));
+  }
+
+  function loadModules() {
+    const rows = $('#module-rows'); rows.innerHTML = '';
+    const sel = $('#p-module');
+    if (sel) sel.innerHTML = modules.map((x) => `<option value="${x.key}">${esc(x.name)}</option>`).join('');
+    modules.forEach((m) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${esc(m.name)}</td><td class="muted">${esc(m.key)}</td>
+        <td class="muted">${esc(m.description || '')}</td>
+        <td><input class="small-input" style="width:300px" value="${esc(m.base_url)}" data-base="${m.key}"></td>
+        <td><button class="btn small ghost" data-save-module="${m.key}">保存</button></td>`;
+      rows.appendChild(tr);
+    });
+    rows.querySelectorAll('[data-save-module]').forEach((b) => b.addEventListener('click', async () => {
+      const key = b.dataset.saveModule;
+      const url = rows.querySelector('[data-base="' + key + '"]').value.trim();
+      try {
+        await api('/api/admin/modules/' + key, { method: 'PUT', body: JSON.stringify({ base_url: url }) });
+        toast('地址已保存');
+        const d = await api('/api/admin/modules'); modules = d.modules;
+      } catch (e) { toast(e.message); }
+    }));
+  }
+
+  $('#key-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const d = await api('/api/admin/keys', { method: 'POST', body: JSON.stringify({
+        plan_id: +$('#k-plan').value, count: +$('#k-count').value, batch_no: $('#k-batch').value
+      }) });
+      $('#generated').value = d.codes.join('\n');
+      toast('已生成 ' + d.codes.length + ' 个卡密');
+      loadKeys(); loadStats();
+    } catch (err) { toast(err.message); }
+  });
+  $('#btn-copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('#generated').value); toast('已复制'); } catch (e) { $('#generated').select(); document.execCommand('copy'); toast('已复制'); }
+  });
+  $('#module-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/admin/modules', { method: 'POST', body: JSON.stringify({
+        key: $('#m-key').value, name: $('#m-name').value, base_url: $('#m-url').value, description: $('#m-desc').value
+      }) });
+      ['m-key', 'm-name', 'm-url', 'm-desc'].forEach((id) => { $('#' + id).value = ''; });
+      toast('模块已新增');
+      const d = await api('/api/admin/modules'); modules = d.modules; loadModules();
+    } catch (err) { toast(err.message); }
+  });
+
+  $('#plan-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/admin/plans', { method: 'POST', body: JSON.stringify({
+        module: $('#p-module').value, name: $('#p-name').value,
+        days: +$('#p-days').value, price_cents: Math.round(parseFloat($('#p-price').value) * 100)
+      }) });
+      $('#p-name').value = ''; $('#p-price').value = '';
+      toast('套餐已新增');
+      const d = await api('/api/admin/plans'); plans = d.plans; loadPlans();
+      await loadBase();
+    } catch (err) { toast(err.message); }
+  });
+
+  $('#pwd-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('#pwd-err').textContent = '';
+    if ($('#p-new').value !== $('#p-new2').value) { $('#pwd-err').textContent = '两次输入的新密码不一致'; return; }
+    try {
+      await api('/api/change-password', { method: 'POST', body: JSON.stringify({
+        old_password: $('#p-old').value, new_password: $('#p-new').value
+      }) });
+      ['p-old', 'p-new', 'p-new2'].forEach((id) => { $('#' + id).value = ''; });
+      toast('密码已修改');
+    } catch (err) { $('#pwd-err').textContent = err.message; }
+  });
+
+  $('#k-module').addEventListener('change', renderPlanSelect);
+  $('#f-status').addEventListener('change', loadKeys);
+  $('#f-module').addEventListener('change', loadKeys);
+  let searchTimer = null;
+  $('#f-q').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadKeys, 300); });
+  $('#btn-export-keys').addEventListener('click', () => { location.href = '/api/admin/keys/export'; });
+  $('#btn-export-merchants').addEventListener('click', () => { location.href = '/api/admin/merchants/export'; });
+
+  async function logout() { try { await api('/api/logout', { method: 'POST' }); } catch (e) {} location.href = '/'; }
+
+  (async () => {
+    const me = await api('/api/me');
+    if (me.user.role !== 'super') { location.href = '/console.html'; return; }
+    document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+    await loadBase();
+    await loadStats();
+    await loadKeys();
+  })().catch((e) => { if (e.message !== '未登录') toast(e.message); });
+</script>
+</body>
+</html>

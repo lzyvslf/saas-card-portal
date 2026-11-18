@@ -1,0 +1,13 @@
+{
+  "name": "saas-card-portal",
+  "version": "1.0.0",
+  "description": "多商户 SaaS 卡密订阅门户示例：注册 / 卡密兑换 / 订阅管理 / 平台后台",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "express": "^4.19.2"
+  }
+}

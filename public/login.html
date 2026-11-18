@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登录 / 注册 · CardPortal</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="center-page">
+  <div class="login-card" style="max-width:420px">
+    <h1 style="cursor:pointer" onclick="location.href='/'">CardPortal</h1>
+    <p class="sub">门店 SaaS · 登录或注册商户账号</p>
+
+    <div class="tabs" style="display:flex;gap:6px;background:#f5f8f7;border-radius:10px;padding:4px;margin-bottom:18px">
+      <button class="btn ghost small" id="tab-login" style="flex:1">登录</button>
+      <button class="btn small" id="tab-register" style="flex:1">注册</button>
+    </div>
+
+    <form id="login-form">
+      <input id="l-user" placeholder="账号" autocomplete="username" required>
+      <input id="l-pass" type="password" placeholder="密码" autocomplete="current-password" required>
+      <button class="btn" type="submit">登录</button>
+      <p class="err" id="login-err"></p>
+    </form>
+
+    <form id="register-form" style="display:none">
+      <input id="r-shop" placeholder="店铺 / 公司名称" required maxlength="40">
+      <input id="r-user" placeholder="登录账号（字母数字下划线）" required maxlength="30">
+      <input id="r-pass" type="password" placeholder="登录密码（至少6位）" required minlength="6">
+      <button class="btn" type="submit">注册并登录</button>
+      <p class="err" id="register-err"></p>
+    </form>
+
+    <p class="hint">演示商户：demo / demo123<br>平台超管：admin / admin123</p>
+    <p class="hint" style="margin-top:6px">注册即代表同意 <a href="/terms.html">用户协议</a> 与 <a href="/privacy.html">隐私政策</a></p>
+  </div>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const next = new URLSearchParams(location.search).get('next');
+    const tab = new URLSearchParams(location.search).get('tab');
+
+    function showTab(which) {
+      const isLogin = which === 'login';
+      $('#login-form').style.display = isLogin ? '' : 'none';
+      $('#register-form').style.display = isLogin ? 'none' : '';
+      $('#tab-login').className = 'btn small' + (isLogin ? '' : ' ghost');
+      $('#tab-register').className = 'btn small' + (isLogin ? ' ghost' : '');
+    }
+    $('#tab-login').addEventListener('click', () => showTab('login'));
+    $('#tab-register').addEventListener('click', () => showTab('register'));
+    showTab(tab === 'register' ? 'register' : 'login');
+
+    $('#login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('#login-err').textContent = '';
+      try {
+        const r = await fetch('/api/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: $('#l-user').value.trim(), password: $('#l-pass').value })
+        });
+        const d = await r.json();
+        if (!r.ok) { $('#login-err').textContent = d.error || '登录失败'; return; }
+        if (d.role === 'super') { location.href = '/admin.html'; return; }
+        location.href = next && next.startsWith('/') ? next : '/console.html';
+      } catch (err) { $('#login-err').textContent = '网络错误，请检查服务是否启动'; }
+    });
+
+    $('#register-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('#register-err').textContent = '';
+      try {
+        const r = await fetch('/api/register', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop_name: $('#r-shop').value.trim(),
+            username: $('#r-user').value.trim(),
+            password: $('#r-pass').value
+          })
+        });
+        const d = await r.json();
+        if (!r.ok) { $('#register-err').textContent = d.error || '注册失败'; return; }
+        location.href = '/console.html';
+      } catch (err) { $('#register-err').textContent = '网络错误，请检查服务是否启动'; }
+    });
+  </script>
+</body>
+</html>

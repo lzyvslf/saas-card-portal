@@ -1,0 +1,19 @@
+# 依赖
+node_modules/
+
+# 本地数据库与 WAL/SHM（不入库，由首次启动自动建库）
+data.db
+data.db-shm
+data.db-wal
+*.sqlite
+*.sqlite3
+
+# 日志
+*.log
+npm-debug.log*
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

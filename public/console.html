@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>商户中心 · CardPortal</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/platform.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">CardPortal <span>商户中心</span></div>
+  <div class="topbar-right">
+    <span class="tenant-chip" id="tenant-name"></span>
+    <button class="btn ghost small" id="btn-pwd">修改密码</button>
+    <button class="btn ghost small" onclick="logout()">退出</button>
+  </div>
+</header>
+<main class="container">
+  <div class="card" id="pending-banner" style="display:none;border-color:#f3d1d1;background:#fffafa">
+    <h3 style="margin:0 0 6px">账号尚未开通任何系统</h3>
+    <p class="muted" style="margin:0">购买卡密后，在下方输入卡密即可开通。</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>我的系统</h3><span class="muted" id="account-info"></span></div>
+    <div class="sub-grid" id="sub-grid"></div>
+  </div>
+
+  <div class="grid-2" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <div class="card-head"><h3>卡密激活 / 续费</h3></div>
+      <form id="redeem-form">
+        <input id="code" placeholder="输入卡密，如 SP-XXXX-XXXX-XXXX" style="width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:10px;font-size:15px;outline:none;text-transform:uppercase" maxlength="30">
+        <button class="btn wide" type="submit" style="margin-top:12px">立即激活</button>
+        <p class="err" id="redeem-err"></p>
+        <p class="hint" id="redeem-msg" style="text-align:left;color:#0f8a5f"></p>
+      </form>
+      <p class="hint" style="text-align:left">同一模块续费会自动累加时长；不同模块需要分别购买对应卡密。</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>购买与开通流程</h3></div>
+      <ol style="margin:0;padding-left:18px;color:var(--muted);font-size:14px;line-height:2">
+        <li>下单对应「系统 + 周期」的卡密</li>
+        <li>回到本页输入卡密，立即开通/续费</li>
+        <li>点击「进入系统」开始使用，电脑手机均可</li>
+      </ol>
+      <p class="hint" style="text-align:left;margin-top:12px" id="taobao-hint">卡密获取方式：占位，上线前替换</p>
+      <div id="price-mini" style="margin-top:8px"></div>
+    </div>
+  </div>
+</main>
+<div class="modal" id="pwd-modal" style="display:none">
+  <div class="modal-box">
+    <h3>修改密码</h3>
+    <input id="c-old" type="password" placeholder="原密码">
+    <input id="c-new" type="password" placeholder="新密码（至少6位）">
+    <input id="c-new2" type="password" placeholder="确认新密码">
+    <p class="err" id="c-err"></p>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn ghost" style="flex:1" onclick="document.getElementById('pwd-modal').style.display='none'">取消</button>
+      <button class="btn" style="flex:1" id="btn-save-pwd">保存</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const toast = (msg) => { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200); };
+  let meData = null;
+  let planData = null;
+
+  async function loadMe() {
+    const r = await fetch('/api/me');
+    if (!r.ok) { location.href = '/login.html?next=/console.html'; throw new Error('未登录'); }
+    meData = await r.json();
+    if (meData.user.role === 'super') { location.href = '/admin.html'; return; }
+    $('#tenant-name').textContent = meData.tenant ? meData.tenant.name : '';
+    $('#account-info').textContent = '账号：' + meData.user.username + ' ｜ 商户编号：' + (meData.tenant ? meData.tenant.code : '');
+  }
+
+  function renderSubs() {
+    const grid = $('#sub-grid'); grid.innerHTML = '';
+    const modules = planData ? planData.modules : [];
+    modules.forEach((m) => {
+      const s = (meData.subscriptions || []).find((x) => x.module === m.key);
+      const active = s && s.expire_at >= todayStr();
+      const card = document.createElement('div');
+      card.className = 'sub-card' + (active ? ' active' : '');
+      card.innerHTML = `<h3>${esc(m.name)}</h3><div class="desc">${esc(m.description || '')}</div>
+        <div class="sub-meta">${active
+          ? '已开通 · ' + esc(s.plan) + '<br>到期：<span class="expire">' + esc(s.expire_at) + '</span>'
+          : '<span class="muted">未开通</span>'}</div>
+        ${active ? '<a class="btn small" style="margin-top:10px" href="' + esc(m.base_url) + '" target="_blank" rel="noopener">进入系统</a>' : ''}`;
+      grid.appendChild(card);
+    });
+    const hasAny = (meData.subscriptions || []).some((s) => s.expire_at >= todayStr());
+    $('#pending-banner').style.display = hasAny ? 'none' : 'block';
+  }
+
+  function renderPriceMini() {
+    if (!planData) return;
+    const box = $('#price-mini');
+    box.innerHTML = planData.modules.map((m) => {
+      const plans = planData.plans.filter((p) => p.module === m.key);
+      return `<div class="plan-row"><span>${esc(m.name)}</span><span class="muted">${plans.map((p) => p.name + ' ¥' + (p.price_cents / 100).toFixed(0)).join(' / ')}</span></div>`;
+    }).join('');
+  }
+
+  $('#redeem-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('#redeem-err').textContent = '';
+    $('#redeem-msg').textContent = '';
+    const code = $('#code').value.trim();
+    if (!code) { $('#redeem-err').textContent = '请输入卡密'; return; }
+    try {
+      const r = await fetch('/api/redeem', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+      const d = await r.json();
+      if (!r.ok) { $('#redeem-err').textContent = d.error || '激活失败'; return; }
+      $('#redeem-msg').innerHTML = '✅ 开通成功：' + esc(d.module_name) + ' · ' + esc(d.plan) + '，有效期至 <b>' + esc(d.expire_at) + '</b>';
+      $('#code').value = '';
+      await loadMe();
+      renderSubs();
+      toast('激活成功');
+    } catch (err) { $('#redeem-err').textContent = '网络错误，请重试'; }
+  });
+
+  $('#btn-pwd').addEventListener('click', () => { $('#pwd-modal').style.display = 'flex'; });
+  $('#btn-save-pwd').addEventListener('click', async () => {
+    $('#c-err').textContent = '';
+    if ($('#c-new').value !== $('#c-new2').value) { $('#c-err').textContent = '两次输入的新密码不一致'; return; }
+    try {
+      const r = await fetch('/api/change-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_password: $('#c-old').value, new_password: $('#c-new').value })
+      });
+      const d = await r.json();
+      if (!r.ok) { $('#c-err').textContent = d.error || '修改失败'; return; }
+      ['c-old', 'c-new', 'c-new2'].forEach((id) => { $('#' + id).value = ''; });
+      $('#pwd-modal').style.display = 'none';
+      toast('密码已修改');
+    } catch (e) { $('#c-err').textContent = '网络错误'; }
+  });
+
+  async function logout() { try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {} location.href = '/'; }
+
+  (async () => {
+    await loadMe();
+    planData = await fetch('/api/plans').then((r) => r.json());
+    renderSubs();
+    renderPriceMini();
+  })().catch(() => {});
+</script>
+</body>
+</html>
