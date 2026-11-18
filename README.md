@@ -114,6 +114,11 @@ $env:PORT=8080; node server.js
 - 隐私政策、用户协议页面中的运营主体、联系方式、ICP 备案号均为占位，正式上线前需补全。
 - 本示例只演示多租户订阅与卡密核销的工程实现，**不涉及任何金融交易、荐股或收益承诺**。
 
-## 八、许可证
+## 八、联系与合作
+
+- GitHub 主页：https://github.com/lzyvslf
+- 问题与建议：在本仓库 [Issues](https://github.com/lzyvslf/saas-card-portal/issues) 留言。
+
+## 九、许可证
 
 MIT，见 [LICENSE](LICENSE)。
